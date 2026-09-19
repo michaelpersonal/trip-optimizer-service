@@ -33,11 +33,11 @@ function buildApp(): FastifyInstance {
       return;
     }
     const e = err as any;
-    if (e && e.validation) {
+    if (e && (e.validation || e.code === "FST_ERR_CTP_EMPTY_JSON_BODY")) {
       reply.status(400).send({ error: "INVALID_REQUEST", message: e.message });
       return;
     }
-    reply.status(500).send({ error: "INTERNAL", message: "unexpected error" });
+    console.error("[INTERNAL]", (err as any)?.stack || err); reply.status(500).send({ error: "INTERNAL", message: "unexpected error" });
   });
 
   // Auth: everything under /v1 requires the dumb key.
