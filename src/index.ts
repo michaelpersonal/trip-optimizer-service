@@ -74,11 +74,6 @@ function buildApp(): FastifyInstance {
     if (!plan.version_id) plan.version_id = newVersionId(1);
 
     store.writeJson(path.join(tripDir, "plan.json"), plan);
-    if (body.constraints !== undefined) store.writeDoc(tripId, "constraints.yaml", body.constraints);
-    if (body.rubrics !== undefined) store.writeDoc(tripId, "rubrics.yaml", body.rubrics);
-    if (body.activities !== undefined) store.writeDoc(tripId, "activities.json", body.activities);
-    fs.writeFileSync(path.join(tripDir, "plan.md"), renderPlanMd(plan, body.name || tripId));
-    fs.writeFileSync(path.join(tripDir, "run-log.tsv"), "iteration\ttimestamp\tmutation_type\tdescription\tscore_before\tscore_after\tdelta\tkept\n");
 
     reg.trips[tripId] = {
       trip_id: tripId,
@@ -89,6 +84,13 @@ function buildApp(): FastifyInstance {
     };
     if (!reg.default_trip) reg.default_trip = tripId;
     store.writeRegistry(reg);
+
+    if (body.constraints !== undefined) store.writeDoc(tripId, "constraints.yaml", body.constraints);
+    if (body.rubrics !== undefined) store.writeDoc(tripId, "rubrics.yaml", body.rubrics);
+    if (body.activities !== undefined) store.writeDoc(tripId, "activities.json", body.activities);
+    fs.writeFileSync(path.join(tripDir, "plan.md"), renderPlanMd(plan, body.name || tripId));
+    fs.writeFileSync(path.join(tripDir, "run-log.tsv"), "iteration\ttimestamp\tmutation_type\tdescription\tscore_before\tscore_after\tdelta\tkept\n");
+
     return { trip_id: tripId, current_version_id: plan.version_id };
   });
 
