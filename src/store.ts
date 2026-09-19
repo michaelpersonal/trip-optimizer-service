@@ -17,6 +17,12 @@ export interface PlanSegment {
   period: "morning" | "lunch" | "afternoon" | "dinner" | "evening";
   title: string;
   details?: string;
+  /** The story or reason this stop earns its place. */
+  why?: string;
+  /** The famous nearby thing NOT worth it, and why. */
+  skip_note?: string;
+  /** Labeled alternatives, e.g. [{label:"A", text:"Rainy-day swap: ..."}]. */
+  alternatives?: { label: string; text: string }[];
   location?: string;
   start_time?: string;
   end_time?: string;
@@ -28,6 +34,10 @@ export interface PlanDay {
   date?: string;
   city?: string;
   hotel?: string;
+  /** Day subtitle, e.g. "外滩、弄堂与梧桐树". */
+  theme?: string;
+  /** 1–2 sentences connecting this day to the previous one. */
+  transition?: string;
   transit?: { mode: string; detail: string };
   segments: PlanSegment[];
   notes?: string;
@@ -39,6 +49,8 @@ export interface Plan {
   created_at: string;
   created_by: string;
   score?: ScoreBlock;
+  /** Pre-trip prep sections rendered before the days. */
+  logistics?: { heading: string; body: string }[];
   days: PlanDay[];
 }
 

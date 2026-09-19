@@ -12,6 +12,12 @@ function renderSegment(s: PlanSegment): string {
     s.start_time || s.end_time ? ` (${s.start_time || ""}${s.end_time ? "–" + s.end_time : ""})` : "";
   let line = `- **${periodLabel(s.period)}** — ${s.title}${time}\n`;
   if (s.details) line += `  ${s.details}\n`;
+  if (s.why) line += `  *Why:* ${s.why}\n`;
+  if (s.skip_note) line += `  *Skip:* ${s.skip_note}\n`;
+  if (s.alternatives && s.alternatives.length) {
+    line += `  *Alternatives:*\n`;
+    for (const a of s.alternatives) line += `    ${a.label}. ${a.text}\n`;
+  }
   const bits: string[] = [];
   if (s.location) bits.push(s.location);
   if (s.tags && s.tags.length) bits.push(s.tags.join(", "));
@@ -24,6 +30,8 @@ function renderDay(d: PlanDay): string {
   if (d.date) out += ` — ${d.date}`;
   if (d.city) out += ` · ${d.city}`;
   out += "\n\n";
+  if (d.theme) out += `### ${d.theme}\n\n`;
+  if (d.transition) out += `*${d.transition}*\n\n`;
   if (d.hotel) out += `Hotel: ${d.hotel}\n\n`;
   if (d.transit) out += `Transit: ${d.transit.mode} — ${d.transit.detail}\n\n`;
   const segs = [...d.segments].sort(
@@ -44,6 +52,12 @@ export function renderPlanMd(plan: Plan, tripName: string): string {
     md += "\n\n";
   }
   const days = [...plan.days].sort((a, b) => a.day_index - b.day_index);
+  if (plan.logistics && plan.logistics.length) {
+    md += `## Pre-trip logistics\n\n`;
+    for (const sec of plan.logistics) {
+      md += `### ${sec.heading}\n\n${sec.body}\n\n`;
+    }
+  }
   for (const d of days) md += renderDay(d);
   return md;
 }
