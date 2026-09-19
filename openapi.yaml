@@ -18,7 +18,7 @@ info:
     PROPOSAL_CONFLICT (stale base_version_id — regenerate, never force),
     PROPOSAL_NOT_APPLICABLE, INVALID_VERSION, INVALID_REQUEST, UNAUTHORIZED.
 servers:
-  - url: https://129.80.204.172.nip.io
+  - url: https://tripoptimizer.duckdns.org
 security:
   - bearerAuth: []
 paths:
