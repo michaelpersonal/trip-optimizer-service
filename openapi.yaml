@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: Trip Optimizer Service
+  version: 0.1.0
+  description: |
+    Deterministic state API for the Trip Optimizer connector.
+
+    This service owns NO judgment. The agent (Muse) does all LLM work:
+    trip interviews, research synthesis, rubric generation, three-pass scoring,
+    proposal drafting, plan Q&A, and debrief distillation.
+
+    The service owns: the trip registry, versioned plans, proposal lifecycle
+    with version-conflict detection, plan rendering, and the append-only run log.
+
+    Auth: `Authorization: Bearer <TRIP_OPTIMIZER_API_KEY>` on all /v1/* routes.
+
+    Error codes: TRIP_NOT_FOUND, TRIP_ID_CONFLICT, PROPOSAL_NOT_FOUND,
+    PROPOSAL_CONFLICT (stale base_version_id — regenerate, never force),
+    PROPOSAL_NOT_APPLICABLE, INVALID_VERSION, INVALID_REQUEST, UNAUTHORIZED.
+servers:
+  - url: https://trip-optimizer.example.com
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check (no auth)
+      security: []
+      responses:
+        '200': { description: ok }
+  /v1/trips:
+    post:
+      summary: Initialize a trip (init)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                trip_id: { type: string, description: optional; slugified from name if omitted }
+                name: { type: string }
+                created_by: { type: string, default: init }
+                plan: { type: object, description: full Plan object (optional; empty v_001 created if omitted) }
+                constraints: { type: object, description: stored as constraints.yaml }
+                rubrics: { type: object, description: stored as rubrics.yaml }
+                activities: { type: object, description: stored as activities.json }
+      responses:
+        '200': { description: '{ trip_id, current_version_id }' }
+    get:
+      summary: List trips
+      responses:
+        '200': { description: '{ trips[], default_trip }' }
+  /v1/trips/{id}:
+    get:
+      summary: Trip summary + doc presence flags
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: trip summary }
+    delete:
+      summary: Delete a trip and all its data
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: '{ deleted }' }
+  /v1/trips/{id}/plan:
+    get:
+      summary: Read the current plan (full, one day, or rendered markdown)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: day, in: query, schema: { type: integer }, description: day_index to fetch alone }
+        - { name: format, in: query, schema: { type: string, enum: [md] }, description: format=md returns rendered plan.md }
+      responses:
+        '200': { description: plan object, { version_id, day }, or { version_id, markdown } }
+    put:
+      summary: Replace the whole plan (research baseline / migration). Bumps version.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan]
+              properties:
+                plan: { type: object, description: Plan with days[] }
+                created_by: { type: string }
+      responses:
+        '200': { description: '{ version_id, parent_version_id }' }
+  /v1/trips/{id}/constraints:
+    get: { summary: Read constraints.yaml, responses: { '200': { description: '{ doc, content }' } } }
+    put:
+      summary: Write constraints.yaml
+      requestBody: { content: { application/json: { schema: { type: object, required: [content], properties: { content: { type: object } } } } } }
+      responses: { '200': { description: '{ doc, updated }' } }
+  /v1/trips/{id}/rubrics:
+    get: { summary: Read rubrics.yaml, responses: { '200': { description: '{ doc, content }' } } }
+    put:
+      summary: Write rubrics.yaml
+      requestBody: { content: { application/json: { schema: { type: object, required: [content], properties: { content: { type: object } } } } } }
+      responses: { '200': { description: '{ doc, updated }' } }
+  /v1/trips/{id}/activities:
+    get: { summary: Read activities.json, responses: { '200': { description: '{ doc, content }' } } }
+    put:
+      summary: Write activities.json
+      requestBody: { content: { application/json: { schema: { type: object, required: [content], properties: { content: { type: object } } } } }
+      responses: { '200': { description: '{ doc, updated }' } }
+  /v1/trips/{id}/proposals:
+    post:
+      summary: Create a proposal (propose). Never auto-applied.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proposal_id: { type: string, description: optional; prop_<unixtime>_<slug> if omitted }
+                base_version_id: { type: string, description: defaults to current version }
+                raw_request: { type: string }
+                intent: { type: string, enum: [direct_override, scoped_reoptimize, structural_change] }
+                scope: { type: object }
+                candidate_plan: { type: object, description: full Plan; null for needs_clarification }
+                impact_summary: { type: object }
+                explanation: { type: object }
+                requested_by: { type: string }
+      responses:
+        '200': { description: '{ proposal_id, status, base_version_id }' }
+    get:
+      summary: List proposals, optionally filtered by status
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, applied, rejected, needs_clarification] } }
+      responses:
+        '200': { description: '{ proposals[] }' }
+  /v1/proposals/{pid}:
+    get:
+      summary: Get one proposal by id (searches all trips)
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: proposal object }
+  /v1/proposals/{pid}/apply:
+    post:
+      summary: Apply a pending proposal. 409 PROPOSAL_CONFLICT if stale; idempotent on re-apply.
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: '{ proposal_id, status, resulting_version_id, score_delta }' }
+  /v1/proposals/{pid}/reject:
+    post:
+      summary: Reject a pending proposal
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200': { description: '{ proposal_id, status }' }
+  /v1/trips/{id}/run-log:
+    post:
+      summary: Append one optimization iteration (append-only)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mutation_type, kept]
+              properties:
+                mutation_type: { type: string, enum: [SWAP, REALLOCATE, REORDER, UPGRADE, SIMPLIFY, RESEARCH, APPLY] }
+                description: { type: string }
+                score_before: { type: number }
+                score_after: { type: number }
+                kept: { type: boolean }
+      responses:
+        '200': { description: '{ iteration }' }
+    get:
+      summary: Read the run log as TSV
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: '{ tsv }' }
+  /v1/profile:
+    get: { summary: Read the global travel profile, responses: { '200': { description: '{ profile }' } } }
+    put:
+      summary: Write the global travel profile
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: '{ updated }' } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: TRIP_OPTIMIZER_API_KEY value
