@@ -10,7 +10,8 @@ function periodLabel(p: string): string {
 function renderSegment(s: PlanSegment): string {
   const time =
     s.start_time || s.end_time ? ` (${s.start_time || ""}${s.end_time ? "–" + s.end_time : ""})` : "";
-  let line = `- **${periodLabel(s.period)}** — ${s.title}${time}\n`;
+  const label = s.period ? `**${periodLabel(s.period)}** — ` : "";
+  let line = `- ${label}${s.title}${time}\n`;
   if (s.details) line += `  ${s.details}\n`;
   if (s.why) line += `  *Why:* ${s.why}\n`;
   if (s.skip_note) line += `  *Skip:* ${s.skip_note}\n`;
@@ -33,9 +34,10 @@ function renderDay(d: PlanDay): string {
   if (d.theme) out += `### ${d.theme}\n\n`;
   if (d.transition) out += `*${d.transition}*\n\n`;
   if (d.hotel) out += `Hotel: ${d.hotel}\n\n`;
-  if (d.transit) out += `Transit: ${d.transit.mode} — ${d.transit.detail}\n\n`;
+  if (d.transit && typeof d.transit === "object" && d.transit.mode)
+    out += `Transit: ${d.transit.mode} — ${d.transit.detail || ""}\n\n`;
   const segs = [...d.segments].sort(
-    (a, b) => PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period),
+    (a, b) => PERIOD_ORDER.indexOf(a.period || "") - PERIOD_ORDER.indexOf(b.period || ""),
   );
   for (const s of segs) out += renderSegment(s);
   if (d.notes) out += `\nNotes: ${d.notes}\n`;
